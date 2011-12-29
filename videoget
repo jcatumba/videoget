@@ -1,0 +1,95 @@
+#!/bin/bash
+#GUI for youtube-dl that converts videos to mp3 or aac audio
+
+function downprogress {
+  while read data
+  do
+    echo $data | sed s/^'\['youtube'\]'.*/'\# 'Obteniendo'\ 'información.../ | \
+    sed s/^'\['download'\]\ 'D.*:/'\# 'Descargando/ | \
+    sed s/^.'\['download'\]''\ '*// | sed s/'\.'[0-9]*\%.*// | \
+    sed s/^'\['ffmpeg'\]'.*/'\# 'Convirtiendo'\ 'a'\ 'formato'\ 'seleccionado.../
+  done
+}
+
+function verify {
+  case $? in
+    0)  echo "Done";;
+    1)  zenity --error --text="Se ha cancelado la operación."
+        exit
+        ;;
+   -1)  zenity --error --text="Se ha producido un error."
+        exit
+        ;;
+  esac
+}
+
+DIRECTORY=$(zenity --width=500 --file-selection --directory --title="Seleccione el directorio para descarga")
+
+verify
+
+OPTIONS=$(zenity --width=500 --list --checklist \
+          --title="Opciones para la descargar de vídeo" \
+          --text="Seleccione las opciones que desea" \
+          --column="" --column="Opción" --column="Código" --separator=" " \
+          --print-column=3 --hide-column=3\
+            'FALSE' "Usar un archivo con links" "1"\
+            'FALSE' "Extraer audio" "2")
+
+verify
+
+if [[ -z $OPTIONS ]]
+then
+  ADDRESS=$(zenity --width=500 --title="" --entry --text="Introduzca la URL del vídeo")
+  verify
+else
+  for i in $OPTIONS
+  do
+    case $i in
+      1 ) FILE=$(zenity --width=500 --file-selection --title="Seleccione un archivo")
+          verify
+          ;;
+      2 ) if [[ $FILE == "" ]];
+          then
+            ADDRESS=$(zenity --width=500 --title="" --entry --text="Introduzca la URL del vídeo")
+            verify
+          fi
+          EXT=$(zenity --width 500 --list --radiolist \
+                --title="Formato de audio" \
+                --text="Elija el formato que desea usar"\
+                --column="" --column="Formato" \
+                'FALSE' "mp3" \
+                'FALSE' "aac")
+          verify
+          ;;
+    esac
+  done
+fi
+
+if [[ $ADDRESS != "" && $EXT != "" ]]
+then
+  zenity --question --title="Confirmación" --text="Se obtendrá el audio de $ADDRESS en formato $EXT.\n¿Está seguro?"
+  verify
+  COMMAND="youtube-dl --extract-audio --audio-format $EXT $ADDRESS"
+elif [[ $ADDRESS != "" && $EXT == "" ]]
+then
+  zenity --question --title="Confirmación" --text="Se obtendrá el vídeo de $ADDRESS.\n¿Está seguro?"
+  verify
+  COMMAND="youtube-dl $ADDRESS"
+elif [[ $ADDRESS == "" && $EXT != "" ]]
+then
+  zenity --question --title="Confirmación" --text="Se obtendrá el audio de los links en $FILE en formato $EXT.\n¿Está seguro?"
+  verify
+  COMMAND="youtube-dl -a $FILE --extract-audio --audio-format $EXT"
+elif [[ $ADDRESS == "" && $EXT == "" ]]
+then
+  zenity --question --title="Confirmación" --text="Se obtendrá el vídeo de los links en $FILE.\n¿Está seguro?"
+  verify
+  COMMAND="youtube-dl -a $FILE"
+fi
+
+$COMMAND -o $DIRECTORY/'%(title)s.%(ext)s' | downprogress | zenity --width=500 --progress \
+      --title="Ejecutando operación" \
+      --text="Obteniendo..." \
+      --percentage=0
+      
+verify
