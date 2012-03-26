@@ -14,7 +14,7 @@ UDPATE_URL = ''
 
 import pygtk
 pygtk.require('2.0')
-import gtk
+import gtk, gobject
 
 class MainWindow:
 
